@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Peer, { MediaConnection, PeerOptions } from 'peerjs';
 
-const PEER_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'localhost:3001';
-const IS_PRODUCTION = process.env.NEXT_PUBLIC_NODE_ENV === 'production';
+const PEER_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 export interface PeerState {
   peer: Peer | null;
@@ -38,11 +38,27 @@ export function usePeer() {
 
     const peerId = id || `moviedate-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    const peerConfig: PeerOptions = IS_PRODUCTION ? {
-      host: PEER_SERVER_URL.replace('https://', '').replace('http://', ''),
-      port: 443,
+    // Parse the server URL properly
+    let parsedHost = 'localhost';
+    let parsedPort = 3001;
+    let isSecure = false;
+
+    try {
+      // Add http:// if missing so URL parser doesn't fail
+      const urlToParse = PEER_SERVER_URL.startsWith('http') ? PEER_SERVER_URL : `http://${PEER_SERVER_URL}`;
+      const url = new URL(urlToParse);
+      parsedHost = url.hostname;
+      parsedPort = url.port ? parseInt(url.port, 10) : (url.protocol === 'https:' ? 443 : 80);
+      isSecure = url.protocol === 'https:';
+    } catch (e) {
+      console.error('Failed to parse PEER_SERVER_URL', e);
+    }
+
+    const peerConfig: PeerOptions = {
+      host: parsedHost,
+      port: parsedPort,
       path: '/peerjs',
-      secure: true,
+      secure: IS_PRODUCTION || isSecure,
       debug: 1,
       config: {
         iceServers: [
@@ -51,17 +67,6 @@ export function usePeer() {
           { urls: 'stun:stun2.l.google.com:19302' },
           { urls: 'stun:stun3.l.google.com:19302' },
           { urls: 'stun:stun4.l.google.com:19302' },
-        ],
-      },
-    } : {
-      host: 'localhost',
-      port: 3001,
-      path: '/peerjs',
-      debug: 1,
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
         ],
       },
     };
