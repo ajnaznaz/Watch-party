@@ -44,12 +44,13 @@ export function usePeer() {
     let isSecure = false;
 
     try {
-      // Add http:// if missing so URL parser doesn't fail
-      const urlToParse = PEER_SERVER_URL.startsWith('http') ? PEER_SERVER_URL : `http://${PEER_SERVER_URL}`;
+      // Add https:// if missing in production so URL parser doesn't fail
+      const prefix = IS_PRODUCTION ? 'https://' : 'http://';
+      const urlToParse = PEER_SERVER_URL.startsWith('http') ? PEER_SERVER_URL : `${prefix}${PEER_SERVER_URL}`;
       const url = new URL(urlToParse);
       parsedHost = url.hostname;
-      parsedPort = url.port ? parseInt(url.port, 10) : (url.protocol === 'https:' ? 443 : 80);
-      isSecure = url.protocol === 'https:';
+      parsedPort = IS_PRODUCTION ? 443 : (url.port ? parseInt(url.port, 10) : 3001);
+      isSecure = IS_PRODUCTION || url.protocol === 'https:';
     } catch (e) {
       console.error('Failed to parse PEER_SERVER_URL', e);
     }
@@ -57,8 +58,8 @@ export function usePeer() {
     const peerConfig: PeerOptions = {
       host: parsedHost,
       port: parsedPort,
-      path: '/peerjs',
-      secure: IS_PRODUCTION || isSecure,
+      path: '/', // Changed from '/peerjs' because PeerJS auto-appends the key ('peerjs')
+      secure: isSecure,
       debug: 1,
       config: {
         iceServers: [
