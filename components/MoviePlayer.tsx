@@ -35,6 +35,8 @@ interface MoviePlayerProps {
   onSeek: (currentTime: number) => void;
   onSpeedChange: (playbackSpeed: number) => void;
   onReaction: (emoji: string) => void;
+  onStreamCaptured?: (stream: MediaStream) => void;
+  remoteMovieStream?: MediaStream | null;
   isHost: boolean;
   usersCount: number;
 }
@@ -58,6 +60,8 @@ export function MoviePlayer({
   onSeek,
   onSpeedChange,
   onReaction,
+  onStreamCaptured,
+  remoteMovieStream,
   isHost,
   usersCount,
 }: MoviePlayerProps) {
@@ -78,10 +82,21 @@ export function MoviePlayer({
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isUserActionRef = useRef(false);
 
+  // Sync with remote movie stream
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video && remoteMovieStream) {
+      // Clear src to prefer srcObject
+      if (video.src) video.src = '';
+      video.srcObject = remoteMovieStream;
+      video.play().catch(() => {});
+    }
+  }, [remoteMovieStream]);
+
   // Sync with remote movie state
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !movieUrl) return;
+    if (!video || (!movieUrl && !remoteMovieStream)) return;
 
     // Check if this is a remote action (not from this user)
     const timeDiff = Math.abs(video.currentTime - movieState.currentTime);
@@ -118,8 +133,21 @@ export function MoviePlayer({
     const video = videoRef.current;
     if (video) {
       setDuration(video.duration);
+      
+      // If we are playing a local file, capture the stream and send it up
+      if (movieUrl && !remoteMovieStream && onStreamCaptured) {
+        try {
+          const captureStream = (video as any).captureStream || (video as any).mozCaptureStream;
+          if (captureStream) {
+            const stream = captureStream.call(video);
+            onStreamCaptured(stream);
+          }
+        } catch (err) {
+          console.error('Error capturing video stream:', err);
+        }
+      }
     }
-  }, []);
+  }, [movieUrl, remoteMovieStream, onStreamCaptured]);
 
   // Play/Pause handlers
   const handlePlay = useCallback(() => {
@@ -257,13 +285,14 @@ export function MoviePlayer({
 
   // Format time
   const formatTime = (time: number) => {
+    if (isNaN(time)) return '00:00';
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
   // If no movie loaded, show upload screen
-  if (!movieUrl) {
+  if (!movieUrl && !remoteMovieStream) {
     return (
       <div className="bg-zinc-900/50 backdrop-blur-xl rounded-2xl border border-zinc-800 h-full flex items-center justify-center min-h-[400px]">
         <motion.div
@@ -275,17 +304,17 @@ export function MoviePlayer({
             <Film className="w-12 h-12 text-red-400" />
           </div>
           <h3 className="text-2xl font-bold text-white mb-2">
-            {movieState.movieName ? 'Match Your Friend\'s Movie' : 'Select a Movie'}
+            {movieState.movieName ? 'Waiting for Host...' : 'Select a Movie'}
           </h3>
           <p className="text-zinc-400 mb-6 max-w-sm">
             {movieState.movieName 
               ? (
                 <span className="text-amber-400 font-medium">
                   Your friend selected "{movieState.movieName}".<br/><br/>
-                  Please select the exact same file from your device to sync playback!
+                  The stream should start automatically in a moment...
                 </span>
               )
-              : "Choose a movie file from your device. The file never leaves your computer - we only sync playback."}
+              : "Choose a movie file from your device to start streaming to your friend!"}
           </p>
           <input
             ref={fileInputRef}
@@ -317,7 +346,7 @@ export function MoviePlayer({
       {/* Video Element */}
       <video
         ref={videoRef}
-        src={movieUrl}
+        src={!remoteMovieStream ? (movieUrl || undefined) : undefined}
         className="w-full aspect-video bg-black"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
@@ -385,16 +414,17 @@ export function MoviePlayer({
             <div className="p-4 space-y-4">
               {/* Progress Bar */}
               <div className="flex items-center gap-3">
-                <span className="text-white text-sm w-16">{formatTime(currentTime)}</span>
+                <span className="text-white text-sm w-16">{formatTime(remoteMovieStream ? movieState.currentTime : currentTime)}</span>
                 <Slider
-                  value={[currentTime]}
-                  max={duration || 100}
+                  value={[remoteMovieStream ? movieState.currentTime : currentTime]}
+                  max={(remoteMovieStream ? movieState.duration : duration) || 100}
                   step={0.1}
                   onValueChange={handleSeek}
                   onValueCommit={handleSeekCommit}
                   className="flex-1 cursor-pointer"
+                  disabled={!!remoteMovieStream} // Disable seeking for receiver since it's a live stream
                 />
-                <span className="text-white text-sm w-16 text-right">{formatTime(duration)}</span>
+                <span className="text-white text-sm w-16 text-right">{formatTime(remoteMovieStream ? movieState.duration : duration)}</span>
               </div>
 
               {/* Control Buttons */}

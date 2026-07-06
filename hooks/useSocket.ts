@@ -18,6 +18,7 @@ export interface MovieState {
   currentTime: number;
   playbackSpeed: number;
   lastUpdate: number;
+  duration: number;
   movieName?: string | null;
 }
 
@@ -147,6 +148,14 @@ export function useSocket(roomId: string | null) {
     }
   }, []);
 
+  const sendMovieDuration = useCallback((duration: number) => {
+    if (DEMO_MODE) return;
+    const socket = socketRef.current;
+    if (socket) {
+      socket.emit('movie-duration', { duration });
+    }
+  }, []);
+
   const sendMessage = useCallback((text: string, emoji?: string) => {
     if (DEMO_MODE) return;
     const socket = socketRef.current;
@@ -196,6 +205,7 @@ export function useSocket(roomId: string | null) {
     sendMoviePause,
     sendMovieSeek,
     sendMovieSpeedChange,
+    sendMovieDuration,
     sendMessage,
     sendTypingStart,
     sendTypingStop,

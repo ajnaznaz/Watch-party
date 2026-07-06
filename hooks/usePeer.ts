@@ -11,6 +11,7 @@ export interface PeerState {
   peerId: string | null;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  remoteMovieStream: MediaStream | null;
   connectionState: 'disconnected' | 'connecting' | 'connected' | 'error';
   error: string | null;
 }
@@ -23,6 +24,7 @@ export function usePeer() {
   const [peerId, setPeerId] = useState<string | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [remoteMovieStream, setRemoteMovieStream] = useState<MediaStream | null>(null);
   const [connectionState, setConnectionState] = useState<PeerState['connectionState']>('disconnected');
   const [error, setError] = useState<string | null>(null);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
@@ -104,21 +106,34 @@ export function usePeer() {
     });
 
     peer.on('call', (call) => {
-      console.log('Incoming call from:', call.peer);
-      currentCallRef.current = call;
+      console.log('Incoming call from:', call.peer, 'metadata:', call.metadata);
+      
+      const isMovieCall = call.metadata?.type === 'movie';
 
-      // Answer even if local stream is missing (allows receiving remote stream)
-      call.answer(localStreamRef.current || undefined);
+      if (isMovieCall) {
+        call.answer(); // Answer without stream to receive the remote movie stream
+        call.on('stream', (stream) => {
+          console.log('Received remote movie stream');
+          setRemoteMovieStream(stream);
+        });
+        call.on('close', () => {
+          setRemoteMovieStream(null);
+        });
+      } else {
+        currentCallRef.current = call;
+        // Answer even if local stream is missing (allows receiving remote stream)
+        call.answer(localStreamRef.current || undefined);
 
-      call.on('stream', (stream) => {
-        console.log('Received remote stream');
-        setRemoteStream(stream);
-      });
+        call.on('stream', (stream) => {
+          console.log('Received remote stream');
+          setRemoteStream(stream);
+        });
 
-      call.on('close', () => {
-        setRemoteStream(null);
-        currentCallRef.current = null;
-      });
+        call.on('close', () => {
+          setRemoteStream(null);
+          currentCallRef.current = null;
+        });
+      }
 
       call.on('error', (err) => {
         console.error('Call error:', err);
@@ -204,6 +219,23 @@ export function usePeer() {
     });
   }, []);
 
+  const streamMovieToPeer = useCallback((remotePeerId: string, stream: MediaStream) => {
+    const peer = peerRef.current;
+    if (!peer || !stream) {
+      console.error('Peer or movie stream not ready');
+      return;
+    }
+
+    console.log('Streaming movie to peer:', remotePeerId);
+    
+    // Pass metadata to distinguish from webcam stream
+    const call = peer.call(remotePeerId, stream, { metadata: { type: 'movie' } });
+
+    call.on('error', (err) => {
+      console.error('Movie call error:', err);
+    });
+  }, []);
+
   const endCall = useCallback(() => {
     if (currentCallRef.current) {
       currentCallRef.current.close();
@@ -247,6 +279,7 @@ export function usePeer() {
 
     setLocalStream(null);
     setRemoteStream(null);
+    setRemoteMovieStream(null);
     setPeerId(null);
     setConnectionState('disconnected');
   }, [endCall]);
@@ -256,6 +289,7 @@ export function usePeer() {
     peerId,
     localStream,
     remoteStream,
+    remoteMovieStream,
     connectionState,
     error,
     isVideoEnabled,
@@ -263,6 +297,7 @@ export function usePeer() {
     initPeer,
     getLocalStream,
     callPeer,
+    streamMovieToPeer,
     endCall,
     toggleVideo,
     toggleAudio,

@@ -33,6 +33,7 @@ export default function RoomPage() {
     sendMoviePause,
     sendMovieSeek,
     sendMovieSpeedChange,
+    sendMovieDuration,
     sendMessage,
     sendTypingStart,
     sendTypingStop,
@@ -45,6 +46,7 @@ export default function RoomPage() {
     peerId,
     localStream,
     remoteStream,
+    remoteMovieStream,
     connectionState: peerConnectionState,
     error: peerError,
     isVideoEnabled,
@@ -52,6 +54,7 @@ export default function RoomPage() {
     initPeer,
     getLocalStream,
     callPeer,
+    streamMovieToPeer,
     endCall,
     toggleVideo,
     toggleAudio,
@@ -66,8 +69,10 @@ export default function RoomPage() {
     currentTime: 0,
     playbackSpeed: 1,
     lastUpdate: Date.now(),
+    duration: 0,
     movieName: null,
   });
+  const [localMovieStream, setLocalMovieStream] = useState<MediaStream | null>(null);
   const [isConnected, setIsConnected] = useState(DEMO_MODE);
   const [isRoomFull, setIsRoomFull] = useState(false);
   const [showNotification, setShowNotification] = useState<string | null>(null);
@@ -165,10 +170,19 @@ export default function RoomPage() {
       setShowNotification(`${user.userName} joined the room`);
       setTimeout(() => setShowNotification(null), 3000);
 
-      if (user.peerId && user.peerId !== peerId && localStream) {
-        setTimeout(() => {
-          callPeer(user.peerId);
-        }, 1000);
+      if (user.peerId && user.peerId !== peerId) {
+        if (localStream) {
+          setTimeout(() => {
+            callPeer(user.peerId);
+          }, 1000);
+        }
+        
+        // If we are currently hosting a movie, stream it to the new user!
+        if (localMovieStream) {
+          setTimeout(() => {
+            streamMovieToPeer(user.peerId, localMovieStream);
+          }, 2000); // Slight delay after webcam call
+        }
       }
     });
 
@@ -221,6 +235,13 @@ export default function RoomPage() {
       }));
     });
 
+    socket.on('movie-duration', (data: { duration: number }) => {
+      setMovieState((prev) => ({
+        ...prev,
+        duration: data.duration,
+      }));
+    });
+
     socket.on('new-message', (message: Message) => {
       setMessages((prev) => [...prev, message]);
     });
@@ -255,6 +276,7 @@ export default function RoomPage() {
       socket.off('movie-seek');
       socket.off('movie-speed-change');
       socket.off('movie-selected');
+      socket.off('movie-duration');
       socket.off('new-message');
       socket.off('new-reaction');
       socket.off('user-typing');
@@ -339,6 +361,23 @@ export default function RoomPage() {
     sendMovieSelected(file.name);
     setMovieState(prev => ({ ...prev, movieName: file.name }));
   }, [sendMovieSelected]);
+
+  const handleStreamCaptured = useCallback((stream: MediaStream) => {
+    setLocalMovieStream(stream);
+    
+    // Broadcast duration (from local video element) to receiver
+    const videoElement = document.querySelector('video[src^="blob:"]') as HTMLVideoElement;
+    if (videoElement && videoElement.duration) {
+      sendMovieDuration(videoElement.duration);
+    }
+    
+    // Stream to all other users currently in the room
+    users.forEach(u => {
+      if (u.peerId !== peerId) {
+        streamMovieToPeer(u.peerId, stream);
+      }
+    });
+  }, [users, peerId, streamMovieToPeer, sendMovieDuration]);
 
   // Clean up reactions after they've animated
   useEffect(() => {
@@ -459,6 +498,8 @@ export default function RoomPage() {
             onSeek={handleMovieSeek}
             onSpeedChange={handleMovieSpeedChange}
             onReaction={handleReaction}
+            onStreamCaptured={handleStreamCaptured}
+            remoteMovieStream={remoteMovieStream}
             isHost={isHost}
             usersCount={users.length}
           />
