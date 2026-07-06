@@ -124,18 +124,11 @@ export default function RoomPage() {
     const socket = socketRef.current;
     if (!socket) return;
 
-    // Wait for socket connection
-    const joinWhenReady = () => {
-      if (socket.connected) {
-        joinRoom(roomId, peerId, userName);
-      } else {
-        socket.once('connect', () => {
-          joinRoom(roomId, peerId, userName);
-        });
-      }
-    };
-
-    joinWhenReady();
+    // If already connected, join immediately. 
+    // If not connected yet, the 'connect' listener in the other useEffect will handle it.
+    if (socket.connected) {
+      joinRoom(roomId, peerId, userName);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peerId]);
 
@@ -148,6 +141,10 @@ export default function RoomPage() {
 
     socket.on('connect', () => {
       setIsConnected(true);
+      if (peerId) {
+        // Automatically rejoin the room if the socket reconnects (e.g. after a deploy)
+        joinRoom(roomId, peerId, userName);
+      }
     });
 
     socket.on('disconnect', () => {
@@ -161,7 +158,10 @@ export default function RoomPage() {
     });
 
     socket.on('user-joined', (user: User) => {
-      setUsers((prev) => [...prev, user]);
+      setUsers((prev) => {
+        if (prev.some((u) => u.id === user.id)) return prev;
+        return [...prev, user];
+      });
       setShowNotification(`${user.userName} joined the room`);
       setTimeout(() => setShowNotification(null), 3000);
 
