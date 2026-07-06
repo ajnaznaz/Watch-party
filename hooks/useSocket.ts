@@ -18,6 +18,7 @@ export interface MovieState {
   currentTime: number;
   playbackSpeed: number;
   lastUpdate: number;
+  movieName?: string | null;
 }
 
 export interface Message {
@@ -114,6 +115,14 @@ export function useSocket(roomId: string | null) {
     }
   }, []);
 
+  const sendMovieSelected = useCallback((movieName: string) => {
+    if (DEMO_MODE) return;
+    const socket = socketRef.current;
+    if (socket) {
+      socket.emit('movie-selected', { movieName });
+    }
+  }, []);
+
   const sendMoviePause = useCallback((currentTime: number) => {
     if (DEMO_MODE) return;
     const socket = socketRef.current;
@@ -182,6 +191,7 @@ export function useSocket(roomId: string | null) {
     disconnect,
     joinRoom,
     leaveRoom,
+    sendMovieSelected,
     sendMoviePlay,
     sendMoviePause,
     sendMovieSeek,

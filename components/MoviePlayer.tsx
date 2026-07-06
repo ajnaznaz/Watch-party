@@ -274,9 +274,18 @@ export function MoviePlayer({
           <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-red-500/20 to-amber-500/20 flex items-center justify-center mx-auto mb-6">
             <Film className="w-12 h-12 text-red-400" />
           </div>
-          <h3 className="text-2xl font-bold text-white mb-2">Select a Movie</h3>
+          <h3 className="text-2xl font-bold text-white mb-2">
+            {movieState.movieName ? 'Match Your Friend\'s Movie' : 'Select a Movie'}
+          </h3>
           <p className="text-zinc-400 mb-6 max-w-sm">
-            Choose a movie file from your device. The file never leaves your computer - we only sync playback.
+            {movieState.movieName 
+              ? (
+                <span className="text-amber-400 font-medium">
+                  Your friend selected "{movieState.movieName}".<br/><br/>
+                  Please select the exact same file from your device to sync playback!
+                </span>
+              )
+              : "Choose a movie file from your device. The file never leaves your computer - we only sync playback."}
           </p>
           <input
             ref={fileInputRef}

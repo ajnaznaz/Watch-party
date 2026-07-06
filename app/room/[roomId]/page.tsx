@@ -28,6 +28,7 @@ export default function RoomPage() {
     disconnect,
     joinRoom,
     leaveRoom,
+    sendMovieSelected,
     sendMoviePlay,
     sendMoviePause,
     sendMovieSeek,
@@ -65,6 +66,7 @@ export default function RoomPage() {
     currentTime: 0,
     playbackSpeed: 1,
     lastUpdate: Date.now(),
+    movieName: null,
   });
   const [isConnected, setIsConnected] = useState(DEMO_MODE);
   const [isRoomFull, setIsRoomFull] = useState(false);
@@ -212,6 +214,13 @@ export default function RoomPage() {
       }));
     });
 
+    socket.on('movie-selected', (data: { movieName: string }) => {
+      setMovieState((prev) => ({
+        ...prev,
+        movieName: data.movieName,
+      }));
+    });
+
     socket.on('new-message', (message: Message) => {
       setMessages((prev) => [...prev, message]);
     });
@@ -245,6 +254,7 @@ export default function RoomPage() {
       socket.off('movie-pause');
       socket.off('movie-seek');
       socket.off('movie-speed-change');
+      socket.off('movie-selected');
       socket.off('new-message');
       socket.off('new-reaction');
       socket.off('user-typing');
@@ -324,7 +334,11 @@ export default function RoomPage() {
     setMovieFile(file);
     const url = URL.createObjectURL(file);
     setMovieUrl(url);
-  }, []);
+    
+    // Broadcast file selection to the other user
+    sendMovieSelected(file.name);
+    setMovieState(prev => ({ ...prev, movieName: file.name }));
+  }, [sendMovieSelected]);
 
   // Clean up reactions after they've animated
   useEffect(() => {
