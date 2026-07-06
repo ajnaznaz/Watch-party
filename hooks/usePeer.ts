@@ -58,7 +58,7 @@ export function usePeer() {
     const peerConfig: PeerOptions = {
       host: parsedHost,
       port: parsedPort,
-      path: '/', // Changed from '/peerjs' because PeerJS auto-appends the key ('peerjs')
+      path: '/peerjs/', // Changed to '/peerjs/' so the full path becomes /peerjs/peerjs to match backend
       secure: isSecure,
       debug: 1,
       config: {

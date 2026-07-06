@@ -57,7 +57,6 @@ export function useSocket(roomId: string | null) {
     if (!socketRef.current) {
       console.log('[Socket] Connecting to:', SOCKET_URL);
       socketRef.current = io(SOCKET_URL, {
-        transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: 10,
         reconnectionDelay: 1000,
