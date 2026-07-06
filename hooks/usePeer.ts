@@ -63,8 +63,8 @@ export function usePeer() {
       debug: 1,
       config: {
         iceServers: [
+          { urls: 'stun:openrelay.metered.ca:80' },
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
           {
             urls: 'turn:openrelay.metered.ca:80',
             username: 'openrelayproject',
@@ -72,6 +72,11 @@ export function usePeer() {
           },
           {
             urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
             username: 'openrelayproject',
             credential: 'openrelayproject'
           }
@@ -102,24 +107,23 @@ export function usePeer() {
       console.log('Incoming call from:', call.peer);
       currentCallRef.current = call;
 
-      if (localStreamRef.current) {
-        call.answer(localStreamRef.current);
+      // Answer even if local stream is missing (allows receiving remote stream)
+      call.answer(localStreamRef.current || undefined);
 
-        call.on('stream', (stream) => {
-          console.log('Received remote stream');
-          setRemoteStream(stream);
-        });
+      call.on('stream', (stream) => {
+        console.log('Received remote stream');
+        setRemoteStream(stream);
+      });
 
-        call.on('close', () => {
-          setRemoteStream(null);
-          currentCallRef.current = null;
-        });
+      call.on('close', () => {
+        setRemoteStream(null);
+        currentCallRef.current = null;
+      });
 
-        call.on('error', (err) => {
-          console.error('Call error:', err);
-          setError(err.message);
-        });
-      }
+      call.on('error', (err) => {
+        console.error('Call error:', err);
+        setError(err.message);
+      });
     });
 
     peerRef.current = peer;
